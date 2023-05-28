@@ -28,11 +28,6 @@ type GlobalConfigSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// +kubebuilder:default=false
-	// +operator-sdk:csv:customresourcedefinitions:type=specs
-	// +kubebuilder:printcolumn:JSONPath=".spec.immutable",name="Immutable",type="boolean"
-	Immutable bool `json:"immutable,omitempty"`
-
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Namespaces NamespacesRegex `json:"namespaces"`
 

@@ -28,11 +28,6 @@ type GlobalSecretSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// +kubebuilder:default=false
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	// +kubebuilder:printcolumn:JSONPath=".spec.immutable",name="Immutable",type="boolean"
-	Immutable bool `json:"immutable"`
-
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Namespaces NamespacesRegex `json:"namespaces"`
 

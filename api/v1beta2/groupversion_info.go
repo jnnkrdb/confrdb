@@ -21,6 +21,8 @@ package v1beta2
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
@@ -36,4 +38,21 @@ var (
 )
 
 // set the finalizer objects
-const FinalizerGlobal string = "v1beta2.globals.jnnkrdb.de/finalizer"
+const FinalizerGlobal string = "globals.jnnkrdb.de/v1beta2.finalizer"
+
+// get/set the labels, whehter to compare or to set
+func MatchingLables(uid types.UID) client.MatchingLabels {
+	return client.MatchingLabels{
+		"globals.jnnkrdb.de/confrdb.version": GroupVersion.Version,
+		"globals.jnnkrdb.de/confrdb.uid":     string(uid),
+	}
+}
+
+const RVAnnotation string = "globals.jnnkrdb.de/confrdb.resourceversion"
+
+// get/set the annotations which contain the resource version of the requesting object
+func Annotations(rv string) map[string]string {
+	return map[string]string{
+		RVAnnotation: rv,
+	}
+}

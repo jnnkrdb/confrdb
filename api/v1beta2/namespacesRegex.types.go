@@ -33,18 +33,14 @@ type NamespacesRegex struct {
 // the 2. list, contains all namespaces, which match with the
 // list of regexpressions from the matches-array, without the namespaces,
 // which match with the avoid-array
-func (nsr NamespacesRegex) CalculateNamespaces(l logr.Logger, ctx context.Context, c client.Client) (all, matches []v1.Namespace, err error) {
+func (nsr NamespacesRegex) CalculateNamespaces(l logr.Logger, ctx context.Context, c client.Client) (matches, avoids []v1.Namespace, err error) {
 	var namespaceList = &v1.NamespaceList{}
 	l.Info("calculating namespaces for the following lists", fmt.Sprintf("NamespacesRegex:%v", nsr))
-	if err = c.List(ctx, namespaceList, &client.ListOptions{}); err != nil {
-		return
-	} else {
+	if err = c.List(ctx, namespaceList, &client.ListOptions{}); err == nil {
 		for i := range namespaceList.Items {
-			// append namespace to all.List
-			all = append(all, namespaceList.Items[i])
 			// check the namespace regex lists and add them accordingly
 			var inList bool = false
-			if inList, err = stringMatchesRegExpList(namespaceList.Items[i].Name, nsr.AvoidRegex); err != nil {
+			if inList, err = stringMatchesRegExpList(namespaceList.Items[i].Name, nsr.AvoidRegex); err == nil {
 				l.Error(err, "error calculating avoids", fmt.Sprintf("current namespace: %s | avoids: %v", namespaceList.Items[i].Name, nsr.AvoidRegex))
 				return
 			} else {
@@ -57,6 +53,8 @@ func (nsr NamespacesRegex) CalculateNamespaces(l logr.Logger, ctx context.Contex
 							matches = append(matches, namespaceList.Items[i])
 						}
 					}
+				} else {
+					avoids = append(avoids, namespaceList.Items[i])
 				}
 			}
 		}
