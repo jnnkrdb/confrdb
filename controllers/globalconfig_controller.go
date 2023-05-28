@@ -150,7 +150,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// TODO(user): create namespace checks
 		//
 
-		newConfigMap.Immutable = &gc.Spec.Immutable
+		newConfigMap.Immutable = func() *bool { b := true; return &b }()
 		newConfigMap.Name = gc.Name
 		newConfigMap.Namespace = namespaceList.Items[i].Name
 		newConfigMap.Labels = map[string]string{
