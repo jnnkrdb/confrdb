@@ -20,6 +20,8 @@ limitations under the License.
 package v1beta2
 
 import (
+	"regexp"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
@@ -37,3 +39,43 @@ var (
 
 // set the finalizer objects
 const FinalizerGlobal string = "v1beta2.globals.jnnkrdb.de/finalizer"
+
+// struct which contains the information about the namespace regex
+type NamespacesRegex struct {
+
+	// +kubebuilder:default={default}
+	// +kubebuilder:validation:UniqueItems=true
+	// +kubebuilder:validation:MinItems=1
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	AvoidRegex []string `json:"avoidregex"`
+
+	// +kubebuilder:default={default}
+	// +kubebuilder:validation:UniqueItems=true
+	// +kubebuilder:validation:MinItems=1
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	MatchRegex []string `json:"matchregex"`
+}
+
+// check whether a string exists in a list of regexpressions or not
+func StringMatchesRegExpList(comp string, regexpList []string) (bool, error) {
+	for i := range regexpList {
+		if matched, err := regexp.MatchString(regexpList[i], comp); err != nil {
+			return false, nil
+		} else {
+			if matched {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// find a string in a list of string
+func StringInList(comp string, list []string) bool {
+	for i := range list {
+		if list[i] == comp {
+			return true
+		}
+	}
+	return false
+}

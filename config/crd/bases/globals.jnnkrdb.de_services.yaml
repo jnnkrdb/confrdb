@@ -46,6 +46,8 @@ spec:
                 default: false
                 type: boolean
               namespaces:
+                description: struct which contains the information about the namespace
+                  regex
                 properties:
                   avoidregex:
                     default:
@@ -153,6 +155,10 @@ spec:
                   - reason
                   - status
                   - type
+                  type: object
+                type: array
+              deployedsecrets:
+                items:
                   type: object
                 type: array
             type: object

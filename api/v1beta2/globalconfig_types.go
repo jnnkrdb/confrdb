@@ -51,8 +51,13 @@ type GlobalConfigStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// +operator-sdk:csv:customresourcedefinitions:type=status
+	DeployedConfigMaps []DeployedConfigMap `json:"deployedconfigmaps,omitempty"`
+
+	// +operator-sdk:csv:customresourcedefinitions:type=status
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
+
+type DeployedConfigMap struct{}
 
 // GlobalConfig is the Schema for the globalconfigs API
 // +kubebuilder:subresource:status

@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/go-logr/logr"
 	globalsv1beta2 "github.com/jnnkrdb/configrdb/api/v1beta2"
 )
 
@@ -79,10 +78,25 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// check, wether the globalconfig has the required finalizer or not
 		if controllerutil.ContainsFinalizer(gs, globalsv1beta2.FinalizerGlobal) {
 
-			// start the finalizing routine
-			if err := r.finalize(ctx, _log, gs); err != nil {
+			_log.Info("finalizing globalsecret", fmt.Sprintf("%s/%s", gs.Namespace, gs.Name))
+
+			// receiving a list of secrets, which are connected to this specific globalsecret
+			var secretList = &v1.SecretList{}
+			if err := r.List(ctx, secretList, client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalsecretuid": string(gs.UID)}); err != nil {
+				_log.Error(err, "error receiving list of secrets", client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalsecretuid": string(gs.UID)})
 				return ctrl.Result{Requeue: true}, err
 			}
+
+			// removing all the secrets in the list
+			for _, scrt := range secretList.Items {
+				_log.Info("removing secret", fmt.Sprintf("Secret[%s/%s]", scrt.Namespace, scrt.Name))
+				if err := r.Delete(ctx, &scrt, &client.DeleteOptions{}); err != nil {
+					_log.Error(err, "error removing secret", fmt.Sprintf("Secret[%s/%s]", scrt.Namespace, scrt.Name))
+					return ctrl.Result{Requeue: true}, err
+				}
+			}
+
+			_log.Info("finished finalizing globalsecrets", fmt.Sprintf("%s/%s", gs.Namespace, gs.Name))
 
 			// remove the finalizer from the globalconfig
 			controllerutil.RemoveFinalizer(gs, globalsv1beta2.FinalizerGlobal)
@@ -103,7 +117,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{Requeue: true}, err
 		}
 	}
-	// ---------------------------------------------------------------------------------------- check the existing and non existing secrets
+	// ---------------------------------------------------------------------------------------- start processing the globalsecret
 
 	// TODO(user): your logic here
 
@@ -115,30 +129,4 @@ func (r *GlobalSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&globalsv1beta2.GlobalSecret{}).
 		Complete(r)
-}
-
-// remove all objects if the finalize function gets called
-func (r *GlobalSecretReconciler) finalize(ctx context.Context, reqLogger logr.Logger, gs *globalsv1beta2.GlobalSecret) error {
-
-	reqLogger.Info("finalizing globalsecret", fmt.Sprintf("%s/%s", gs.Namespace, gs.Name))
-
-	// receiving a list of secrets, which are connected to this specific globalsecret
-	var secretList = &v1.SecretList{}
-	if err := r.List(ctx, secretList, client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalsecretuid": string(gs.UID)}); err != nil {
-		reqLogger.Error(err, "error receiving list of secrets", fmt.Sprintf("label [%s]=%s", "createdByConfRDB", globalsv1beta2.GroupVersion.Version), fmt.Sprintf("label [%s]=%s", "globalsecretuuid", string(gs.UID)))
-		return err
-	}
-
-	// removing all the secrets in the list
-	for _, cm := range secretList.Items {
-		reqLogger.Info("removing configmap", fmt.Sprintf("Secret[%s/%s]", cm.Namespace, cm.Name))
-		if err := r.Delete(ctx, &cm, &client.DeleteOptions{}); err != nil {
-			reqLogger.Error(err, "error removing configmap", fmt.Sprintf("Secret[%s/%s]", cm.Namespace, cm.Name))
-			return err
-		}
-	}
-
-	reqLogger.Info("finished finalizing globalsecrets", fmt.Sprintf("%s/%s", gs.Namespace, gs.Name))
-
-	return nil
 }

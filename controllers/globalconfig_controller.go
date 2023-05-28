@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/go-logr/logr"
 	globalsv1beta2 "github.com/jnnkrdb/configrdb/api/v1beta2"
 )
 
@@ -56,6 +55,7 @@ type GlobalConfigReconciler struct {
 func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var _log = log.FromContext(ctx).WithName("GlobalConfig")
 
+	// ---------------------------------------------------------------------------------------- get the current globalconfig from the reconcile request
 	// create caching object
 	gc := &globalsv1beta2.GlobalConfig{}
 
@@ -83,9 +83,25 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if controllerutil.ContainsFinalizer(gc, globalsv1beta2.FinalizerGlobal) {
 
 			// start the finalizing routine
-			if err := r.finalize(ctx, _log, gc); err != nil {
+			_log.Info("finalizing globalconfig", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
+
+			// receiving a list of configmaps, which are connected to this specific globalconfig
+			var configMapList = &v1.ConfigMapList{}
+			if err := r.List(ctx, configMapList, client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalconfiguid": string(gc.UID)}); err != nil {
+				_log.Error(err, "error receiving list of configmaps", client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalconfiguid": string(gc.UID)})
 				return ctrl.Result{Requeue: true}, err
 			}
+
+			// removing all the configmaps in the list
+			for _, cm := range configMapList.Items {
+				_log.Info("removing configmap", fmt.Sprintf("ConfigMap[%s/%s]", cm.Namespace, cm.Name))
+				if err := r.Delete(ctx, &cm, &client.DeleteOptions{}); err != nil {
+					_log.Error(err, "error removing configmap", fmt.Sprintf("ConfigMap[%s/%s]", cm.Namespace, cm.Name))
+					return ctrl.Result{Requeue: true}, err
+				}
+			}
+
+			_log.Info("finished finalizing globalconfig", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
 
 			// remove the finalizer from the globalconfig
 			controllerutil.RemoveFinalizer(gc, globalsv1beta2.FinalizerGlobal)
@@ -96,6 +112,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
+	// ---------------------------------------------------------------------------------------- add neccessary finalizer, if not added
 	// check, wether the globalconfig has the required finalizer or not
 	// if not, then add the finalizer
 	if controllerutil.ContainsFinalizer(gc, globalsv1beta2.FinalizerGlobal) {
@@ -107,7 +124,46 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// ---------------------------------------------------------------------------------------- check the existing and non existing configmaps
+	// ---------------------------------------------------------------------------------------- start processing the globalconfig
+
+	// updating the existing configmaps
+	var configMapList = &v1.ConfigMapList{}
+	if err := r.List(ctx, configMapList, client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalconfiguid": string(gc.UID)}); err != nil {
+		_log.Error(err, "error receiving list of configmaps", client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalconfiguid": string(gc.UID)})
+		return ctrl.Result{Requeue: true}, err
+	}
+
+	// update all configmaps in this list
+
+	// create the new requested configmaps
+	var namespaceList = &v1.NamespaceList{}
+	if err := r.List(ctx, configMapList, &client.ListOptions{}); err != nil {
+		_log.Error(err, "error receiving list of namespaces")
+		return ctrl.Result{Requeue: true}, err
+	}
+
+	var newConfigMap = &v1.ConfigMap{}
+	for i := range namespaceList.Items {
+
+		// check the current namespace for deployment
+		//
+		// TODO(user): create namespace checks
+		//
+
+		newConfigMap.Immutable = &gc.Spec.Immutable
+		newConfigMap.Name = gc.Name
+		newConfigMap.Namespace = namespaceList.Items[i].Name
+		newConfigMap.Labels = map[string]string{
+			"createdByConfRDB": globalsv1beta2.GroupVersion.Version,
+			"globalconfiguid":  string(gc.UID),
+		}
+		newConfigMap.Data = gc.Spec.Data
+
+		if err := r.Create(ctx, newConfigMap, &client.CreateOptions{}); err != nil {
+			_log.Error(err, "error creating new configmap", fmt.Sprintf("[%s/%s]", newConfigMap.Namespace, newConfigMap.Name))
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
 
 	// TODO(user): your logic here
 
@@ -119,30 +175,4 @@ func (r *GlobalConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&globalsv1beta2.GlobalConfig{}).
 		Complete(r)
-}
-
-// remove all objects if the finalize function gets called
-func (r *GlobalConfigReconciler) finalize(ctx context.Context, reqLogger logr.Logger, gc *globalsv1beta2.GlobalConfig) error {
-
-	reqLogger.Info("finalizing globalconfig", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
-
-	// receiving a list of configmaps, which are connected to this specific globalconfig
-	var configMapList = &v1.ConfigMapList{}
-	if err := r.List(ctx, configMapList, client.MatchingLabels{"createdByConfRDB": globalsv1beta2.GroupVersion.Version, "globalconfiguid": string(gc.UID)}); err != nil {
-		reqLogger.Error(err, "error receiving list of configmaps", fmt.Sprintf("label [%s]=%s", "createdByConfRDB", globalsv1beta2.GroupVersion.Version), fmt.Sprintf("label [%s]=%s", "globalconfiguuid", string(gc.UID)))
-		return err
-	}
-
-	// removing all the configmaps in the list
-	for _, cm := range configMapList.Items {
-		reqLogger.Info("removing configmap", fmt.Sprintf("ConfigMap[%s/%s]", cm.Namespace, cm.Name))
-		if err := r.Delete(ctx, &cm, &client.DeleteOptions{}); err != nil {
-			reqLogger.Error(err, "error removing configmap", fmt.Sprintf("ConfigMap[%s/%s]", cm.Namespace, cm.Name))
-			return err
-		}
-	}
-
-	reqLogger.Info("finished finalizing globalconfigs", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
-
-	return nil
 }
