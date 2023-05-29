@@ -2,7 +2,6 @@ package v1beta2
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 
 	"github.com/go-logr/logr"
@@ -14,14 +13,10 @@ import (
 type NamespacesRegex struct {
 
 	// +kubebuilder:default={default}
-	// +kubebuilder:validation:UniqueItems=true
-	// +kubebuilder:validation:MinItems=1
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	AvoidRegex []string `json:"avoidregex"`
 
 	// +kubebuilder:default={default}
-	// +kubebuilder:validation:UniqueItems=true
-	// +kubebuilder:validation:MinItems=1
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	MatchRegex []string `json:"matchregex"`
 }
@@ -35,22 +30,24 @@ type NamespacesRegex struct {
 // which match with the avoid-array
 func (nsr NamespacesRegex) CalculateNamespaces(l logr.Logger, ctx context.Context, c client.Client) (matches, avoids []v1.Namespace, err error) {
 	var namespaceList = &v1.NamespaceList{}
-	l.Info("calculating namespaces for the following lists", fmt.Sprintf("NamespacesRegex:%v", nsr))
+	l.Info("calculating namespaces for the following lists", "NamespacesRegex", nsr)
 	if err = c.List(ctx, namespaceList, &client.ListOptions{}); err == nil {
 		for i := range namespaceList.Items {
 			// check the namespace regex lists and add them accordingly
 			var inList bool = false
-			if inList, err = stringMatchesRegExpList(namespaceList.Items[i].Name, nsr.AvoidRegex); err == nil {
-				l.Error(err, "error calculating avoids", fmt.Sprintf("current namespace: %s | avoids: %v", namespaceList.Items[i].Name, nsr.AvoidRegex))
+			if inList, err = stringMatchesRegExpList(namespaceList.Items[i].Name, nsr.AvoidRegex); err != nil {
+				l.Error(err, "error calculating avoids", "current namespace", namespaceList.Items[i].Name, "avoids", nsr.AvoidRegex)
 				return
 			} else {
 				if !inList {
 					if inList, err = stringMatchesRegExpList(namespaceList.Items[i].Name, nsr.MatchRegex); err != nil {
-						l.Error(err, "error calculating matches", fmt.Sprintf("current namespace: %s | matches: %v", namespaceList.Items[i].Name, nsr.MatchRegex))
+						l.Error(err, "error calculating matches", "current namespace", namespaceList.Items[i].Name, "matches", nsr.MatchRegex)
 						return
 					} else {
 						if inList {
 							matches = append(matches, namespaceList.Items[i])
+						} else {
+							avoids = append(avoids, namespaceList.Items[i])
 						}
 					}
 				} else {

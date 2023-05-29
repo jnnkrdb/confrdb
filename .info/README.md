@@ -11,6 +11,6 @@ operator-sdk create api --group globals --version v1beta2 --kind GlobalSecret --
 ```
 
 ```bash
-operator-sdk build docker.io/jnnkrdb/confrdb:v0.0.1
+docker build docker.io/jnnkrdb/confrdb:v0.0.1
 docker push docker.io/jnnkrdb/confrdb:v0.0.1
 ```

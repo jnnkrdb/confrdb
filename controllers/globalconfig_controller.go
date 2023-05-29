@@ -19,6 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -76,6 +78,20 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	// ---------------------------------------------------------------------------------------- add neccessary finalizer, if not added
+	// check, wether the globalconfig has the required finalizer or not
+	// if not, then add the finalizer
+	if !controllerutil.ContainsFinalizer(gc, globalsv1beta2.FinalizerGlobal) {
+		_log.Info("appending finalizer")
+
+		// add the desired finalizer and update the object
+		controllerutil.AddFinalizer(gc, globalsv1beta2.FinalizerGlobal)
+		if err := r.Update(ctx, gc); err != nil {
+			_log.Error(err, "error adding finalizer")
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
+
 	// ---------------------------------------------------------------------------------------- receiving a list of configmaps, which are connected to this specific globalconfig
 	// start the finalizing routine
 	_log.Info("receiving a list of configmaps, which are connected to this specific globalconfig")
@@ -115,20 +131,6 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	// ---------------------------------------------------------------------------------------- add neccessary finalizer, if not added
-	// check, wether the globalconfig has the required finalizer or not
-	// if not, then add the finalizer
-	if controllerutil.ContainsFinalizer(gc, globalsv1beta2.FinalizerGlobal) {
-		_log.Info("appending finalizer")
-
-		// add the desired finalizer and update the object
-		controllerutil.AddFinalizer(gc, globalsv1beta2.FinalizerGlobal)
-		if err := r.Update(ctx, gc); err != nil {
-			_log.Error(err, "error adding finalizer")
-			return ctrl.Result{Requeue: true}, err
-		}
-	}
-
 	// ---------------------------------------------------------------------------------------- start processing the globalconfig
 	_log.Info("calculating the namespaces")
 	var matches, avoids []v1.Namespace
@@ -143,7 +145,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// remove existing configmaps from the avoids
 	_log.Info("removing already existing configmap in namespaces to avoid")
 	for i := range avoids {
-		nsLog := _log.WithValues(fmt.Sprintf("current ConfigMap[%s/%s]", avoids[i].Name, gc.Name))
+		nsLog := _log.WithValues("current ConfigMap", fmt.Sprintf("[%s/%s]", avoids[i].Name, gc.Name))
 
 		if err = r.Get(ctx, types.NamespacedName{Namespace: avoids[i].Name, Name: gc.Name}, cm, &client.GetOptions{}); err != nil {
 			if errors.IsNotFound(err) {
@@ -160,59 +162,61 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// create or update the configmaps from the matching namespaces
 	for i := range matches {
-		nsLog := _log.WithValues(fmt.Sprintf("current ConfigMap[%s/%s]", matches[i].Name, gc.Name))
+		nsLog := _log.WithValues("current ConfigMap", fmt.Sprintf("[%s/%s]", matches[i].Name, gc.Name))
 
-		if err = r.Get(ctx, types.NamespacedName{Namespace: matches[i].Name, Name: gc.Name}, cm, &client.GetOptions{}); err != nil && errors.IsNotFound(err) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: matches[i].Name, Name: gc.Name}, cm, &client.GetOptions{}); err != nil && !errors.IsNotFound(err) {
 			nsLog.Error(err, "error requesting configmapdata")
 			return ctrl.Result{Requeue: true}, err
 		}
 
 		// if the configmap does not exist, then create a new configmap
 		if errors.IsNotFound(err) {
+
+			nsLog.Info("creating configmap")
 			// create the actual object
-			cm.Annotations = globalsv1beta2.Annotations(gc.ResourceVersion)
+			cm.Name = gc.Name
+			cm.Namespace = matches[i].Name
+			// cm.Annotations = globalsv1beta2.Annotations(gc.ResourceVersion)
 			cm.Data = gc.Spec.Data
 			cm.Immutable = func() *bool { b := true; return &b }()
 			cm.Labels = globalsv1beta2.MatchingLables(gc.UID)
-			if err := r.Create(ctx, cm, &client.CreateOptions{}); err != nil {
+			if err = r.Create(ctx, cm, &client.CreateOptions{}); err != nil {
 				nsLog.Error(err, "error creating new configmap")
 				return ctrl.Result{Requeue: true}, err
 			}
 			continue
 		}
 
+		nsLog.Info("updating configmap")
 		// since all configmaps where created with the immutable=true flag, we can not simple update them,
 		// we have to delete the configmap and then create the new configmap
-		if value, ok := cm.Annotations[globalsv1beta2.RVAnnotation]; ok {
-			nsLog.Error(fmt.Errorf("annotation [%s] does not exist on this object", globalsv1beta2.RVAnnotation), "error comparing the annotations")
-			return ctrl.Result{Requeue: true}, err
-		} else {
-			if value != gc.ResourceVersion {
-				if err = r.Delete(ctx, cm, &client.DeleteOptions{}); err != nil {
-					nsLog.Error(err, "error creating new configmap")
-					return ctrl.Result{Requeue: true}, err
-				}
+		if !reflect.DeepEqual(cm.Data, gc.Spec.Data) {
+			if err = r.Delete(ctx, cm, &client.DeleteOptions{}); err != nil {
+				nsLog.Error(err, "error creating new configmap")
+				return ctrl.Result{Requeue: true}, err
+			}
 
-				// provide data
-				cm.Name = gc.Name
-				cm.Namespace = matches[i].Name
-				cm.Annotations = globalsv1beta2.Annotations(gc.ResourceVersion)
-				cm.Data = gc.Spec.Data
-				cm.Immutable = func() *bool { b := true; return &b }()
-				cm.Labels = globalsv1beta2.MatchingLables(gc.UID)
+			// provide data
+			cm.Name = gc.Name
+			cm.Namespace = matches[i].Name
+			// cm.Annotations = globalsv1beta2.Annotations(gc.ResourceVersion)
+			cm.Data = gc.Spec.Data
+			cm.Immutable = func() *bool { b := true; return &b }()
+			cm.Labels = globalsv1beta2.MatchingLables(gc.UID)
 
-				// recreate the configmap
-				if err = r.Create(ctx, cm, &client.CreateOptions{}); err != nil {
-					nsLog.Error(err, "error creating new configmap")
-					return ctrl.Result{Requeue: true}, err
-				}
+			// recreate the configmap
+			if err = r.Create(ctx, cm, &client.CreateOptions{}); err != nil {
+				nsLog.Error(err, "error creating new configmap")
+				return ctrl.Result{Requeue: true}, err
 			}
 		}
 	}
 
 	// TODO(user): your logic here
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		RequeueAfter: (3 * time.Minute),
+	}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

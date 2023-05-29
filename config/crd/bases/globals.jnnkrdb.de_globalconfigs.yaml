@@ -12,6 +12,9 @@ spec:
     kind: GlobalConfig
     listKind: GlobalConfigList
     plural: globalconfigs
+    shortNames:
+    - gc
+    - gcs
     singular: globalconfig
   scope: Namespaced
   versions:
@@ -39,27 +42,22 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
-              immutable:
-                default: false
-                type: boolean
               namespaces:
+                description: struct which contains the information about the namespace
+                  regex
                 properties:
                   avoidregex:
                     default:
                     - default
                     items:
                       type: string
-                    minItems: 1
                     type: array
-                    uniqueItems: true
                   matchregex:
                     default:
                     - default
                     items:
                       type: string
-                    minItems: 1
                     type: array
-                    uniqueItems: true
                 required:
                 - avoidregex
                 - matchregex
@@ -137,6 +135,10 @@ spec:
                   - reason
                   - status
                   - type
+                  type: object
+                type: array
+              deployedconfigmaps:
+                items:
                   type: object
                 type: array
             type: object

@@ -57,7 +57,7 @@ type DeployedConfigMap struct{}
 // GlobalConfig is the Schema for the globalconfigs API
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=services,shortName=gc;gcs
+// +kubebuilder:resource:path=globalconfigs,shortName=gc;gcs
 type GlobalConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

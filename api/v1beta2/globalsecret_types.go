@@ -57,7 +57,7 @@ type DeployedSecret struct{}
 // GlobalSecret is the Schema for the globalsecrets API
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=services,shortName=gs;gss
+// +kubebuilder:resource:path=globalsecrets,shortName=gs;gss
 type GlobalSecret struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
