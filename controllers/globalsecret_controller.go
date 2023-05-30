@@ -216,10 +216,10 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			data := make(map[string]string)
 			for k, v := range gs.Spec.Data {
 				if unenc, err := base64.StdEncoding.DecodeString(v); err != nil {
-					data[k] = string(unenc)
-				} else {
 					nsLog.Error(err, "error converting base64 data into secret data bytes")
 					return ctrl.Result{Requeue: true}, err
+				} else {
+					data[k] = string(unenc)
 				}
 			}
 			scrt.StringData = data

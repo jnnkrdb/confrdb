@@ -394,15 +394,9 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "list", "watch"]
-  # Get/Create/Patch/Update/Delete Secrets
+  # Get/List/Watch/Create/Patch/Update/Delete ConfigMaps and Secrets
 - apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "create", "patch", "update", "delete"]
-  # Get/List/Watch/Create/Patch/Update/Delete ConfigMaps 
-  # Receives more rights for COnfigMaps than for Secrets
-  # because of the leader election
-- apiGroups: [""]
-  resources: ["configmaps"]
+  resources: ["configmaps", "secrets"]
   verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
   # Get/List/Watch/Create/Patch/Update/Delete GlobalConfigs and GlobalSecrets
 - apiGroups: ["globals.jnnkrdb.de"]
@@ -469,7 +463,7 @@ spec:
       serviceAccountName: sa-confrdb
       containers:
       - name: confrdb
-        image: docker.io/jnnkrdb/confrdb:v0.1.0
+        image: docker.io/jnnkrdb/confrdb:v0.1.1
         imagePullPolicy: Always
         command:
         - /manager
