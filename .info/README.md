@@ -1,4 +1,4 @@
-# ConfRDB Operator
+# helping commands
 
 ```bash
 operator-sdk init --domain jnnkrdb.de --repo github.com/jnnkrdb/configrdb
