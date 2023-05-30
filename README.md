@@ -463,7 +463,7 @@ spec:
       serviceAccountName: sa-confrdb
       containers:
       - name: confrdb
-        image: docker.io/jnnkrdb/confrdb:v0.1.1
+        image: docker.io/jnnkrdb/confrdb:v0.1.4
         imagePullPolicy: Always
         command:
         - /manager

@@ -150,6 +150,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for i := range avoids {
 		nsLog := _log.WithValues("current Secret", fmt.Sprintf("[%s/%s]", avoids[i].Name, gs.Name))
 
+		scrt = &v1.Secret{}
 		if err = r.Get(ctx, types.NamespacedName{Namespace: avoids[i].Name, Name: gs.Name}, scrt, &client.GetOptions{}); err != nil {
 			if errors.IsNotFound(err) {
 				continue
@@ -167,6 +168,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for i := range matches {
 		nsLog := _log.WithValues("current Secret", fmt.Sprintf("[%s/%s]", matches[i].Name, gs.Name))
 
+		scrt = &v1.Secret{}
 		if err = r.Get(ctx, types.NamespacedName{Namespace: matches[i].Name, Name: gs.Name}, scrt, &client.GetOptions{}); err != nil && !errors.IsNotFound(err) {
 			nsLog.Error(err, "error requesting secretdata")
 			return ctrl.Result{Requeue: true}, err
@@ -175,7 +177,8 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// if the configmap does not exist, then create a new configmap
 		if errors.IsNotFound(err) {
 
-			nsLog.Info("creating configmap")
+			nsLog.Info("creating secret")
+			scrt = &v1.Secret{}
 			// create the actual object
 			scrt.Name = gs.Name
 			scrt.Namespace = matches[i].Name
@@ -209,6 +212,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return ctrl.Result{Requeue: true}, err
 			}
 
+			scrt = &v1.Secret{}
 			// provide data
 			scrt.Name = gs.Name
 			scrt.Namespace = matches[i].Name

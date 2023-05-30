@@ -150,6 +150,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for i := range avoids {
 		nsLog := _log.WithValues("current ConfigMap", fmt.Sprintf("[%s/%s]", avoids[i].Name, gc.Name))
 
+		cm = &v1.ConfigMap{}
 		if err = r.Get(ctx, types.NamespacedName{Namespace: avoids[i].Name, Name: gc.Name}, cm, &client.GetOptions{}); err != nil {
 			if errors.IsNotFound(err) {
 				continue
@@ -167,6 +168,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for i := range matches {
 		nsLog := _log.WithValues("current ConfigMap", fmt.Sprintf("[%s/%s]", matches[i].Name, gc.Name))
 
+		cm = &v1.ConfigMap{}
 		if err = r.Get(ctx, types.NamespacedName{Namespace: matches[i].Name, Name: gc.Name}, cm, &client.GetOptions{}); err != nil && !errors.IsNotFound(err) {
 			nsLog.Error(err, "error requesting configmapdata")
 			return ctrl.Result{Requeue: true}, err
@@ -176,6 +178,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if errors.IsNotFound(err) {
 
 			nsLog.Info("creating configmap")
+			cm = &v1.ConfigMap{}
 			// create the actual object
 			cm.Name = gc.Name
 			cm.Namespace = matches[i].Name
@@ -199,6 +202,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return ctrl.Result{Requeue: true}, err
 			}
 
+			cm = &v1.ConfigMap{}
 			// provide data
 			cm.Name = gc.Name
 			cm.Namespace = matches[i].Name
