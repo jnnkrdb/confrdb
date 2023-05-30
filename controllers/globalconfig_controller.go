@@ -44,7 +44,7 @@ type GlobalConfigReconciler struct {
 //+kubebuilder:rbac:groups=globals.jnnkrdb.de,resources=globalconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=globals.jnnkrdb.de,resources=globalconfigs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list
+//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -74,8 +74,8 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, nil
 		}
 
-		// if the error is something else, print the globalconfig and the error
-		return ctrl.Result{}, err
+		// if the error is something else, return the error
+		return ctrl.Result{Requeue: true}, err
 	}
 
 	// ---------------------------------------------------------------------------------------- add neccessary finalizer, if not added
@@ -108,18 +108,20 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// check, wether the globalconfig has the required finalizer or not
 		if controllerutil.ContainsFinalizer(gc, globalsv1beta2.FinalizerGlobal) {
 			// start the finalizing routine
-			_log.Info("finalizing globalconfig", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
+			_log.Info("finalizing globalconfig")
 
 			// removing all the configmaps in the list
 			for _, cm := range configMapList.Items {
-				_log.Info("removing configmap")
+
+				_log.Info("removing configmap", "ConfigMap", fmt.Sprintf("[%s/%s]", cm.Namespace, cm.Name))
 				if err := r.Delete(ctx, &cm, &client.DeleteOptions{}); err != nil {
+
 					_log.Error(err, "error removing configmap", fmt.Sprintf("ConfigMap[%s/%s]", cm.Namespace, cm.Name))
 					return ctrl.Result{Requeue: true}, err
 				}
 			}
 
-			_log.Info("finished finalizing globalconfig", fmt.Sprintf("%s/%s", gc.Namespace, gc.Name))
+			_log.Info("finished finalizing globalconfig")
 
 			// remove the finalizer from the globalconfig
 			controllerutil.RemoveFinalizer(gc, globalsv1beta2.FinalizerGlobal)
@@ -137,6 +139,7 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var err error
 	var cm = &v1.ConfigMap{}
 
+	// calculate the neccessary namespaces
 	if matches, avoids, err = gc.Spec.Namespaces.CalculateNamespaces(_log, ctx, r.Client); err != nil {
 		_log.Error(err, "error calculating the namespaces")
 		return ctrl.Result{Requeue: true}, err
@@ -211,8 +214,6 @@ func (r *GlobalConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 	}
-
-	// TODO(user): your logic here
 
 	return ctrl.Result{
 		RequeueAfter: (3 * time.Minute),

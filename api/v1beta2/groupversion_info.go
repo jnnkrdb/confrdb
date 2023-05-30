@@ -47,12 +47,3 @@ func MatchingLables(uid types.UID) client.MatchingLabels {
 		"globals.jnnkrdb.de/confrdb.uid":     string(uid),
 	}
 }
-
-const RVAnnotation string = "globals.jnnkrdb.de/confrdb.resourceversion"
-
-// get/set the annotations which contain the resource version of the requesting object
-func Annotations(rv string) map[string]string {
-	return map[string]string{
-		RVAnnotation: rv,
-	}
-}
