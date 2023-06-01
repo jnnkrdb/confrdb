@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -204,9 +203,18 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		nsLog.Info("updating secret")
-		// since all secrets where created with the immutable=true flag, we can not simple update them,
-		// we have to delete the secret and then create the new secret
-		if !reflect.DeepEqual(scrt.Data, gs.Spec.Data) {
+		var data = make(map[string]string, len(gs.Spec.Data))
+		for k, v := range gs.Spec.Data {
+			if unenc, err := base64.StdEncoding.DecodeString(v); err != nil {
+				nsLog.Error(err, "error converting base64 data into secret data bytes")
+				return ctrl.Result{Requeue: true}, err
+			} else {
+				data[k] = string(unenc)
+			}
+		}
+
+		if !reflect.DeepEqual(data, scrt.StringData) {
+
 			if err = r.Delete(ctx, scrt, &client.DeleteOptions{}); err != nil {
 				nsLog.Error(err, "error creating new secret")
 				return ctrl.Result{Requeue: true}, err
@@ -217,15 +225,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			scrt.Name = gs.Name
 			scrt.Namespace = matches[i].Name
 			// cm.Annotations = globalsv1beta2.Annotations(gs.ResourceVersion)
-			data := make(map[string]string)
-			for k, v := range gs.Spec.Data {
-				if unenc, err := base64.StdEncoding.DecodeString(v); err != nil {
-					nsLog.Error(err, "error converting base64 data into secret data bytes")
-					return ctrl.Result{Requeue: true}, err
-				} else {
-					data[k] = string(unenc)
-				}
-			}
+			scrt.Type = v1.SecretType(gs.Spec.Type)
 			scrt.StringData = data
 			scrt.Immutable = func() *bool { b := true; return &b }()
 			scrt.Labels = globalsv1beta2.MatchingLables(gs.UID)
@@ -238,9 +238,7 @@ func (r *GlobalSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	return ctrl.Result{
-		RequeueAfter: (3 * time.Minute),
-	}, nil
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
